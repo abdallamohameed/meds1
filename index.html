@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#059669" />
+  <title>مُنظم مواعيد العلاج اليومي</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .dose-checkbox:checked + .dose-card {
+      background-color: #f0fdf4;
+      border-color: #86efac;
+    }
+    @keyframes notifSlideDown {
+      0% { transform: translateY(-120%); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .app-notif-card {
+      animation: notifSlideDown 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-14 selection:bg-emerald-100 selection:text-emerald-900">
+
+  <!-- Native Mobile App Heads-Up Notification Banner (One UI / iOS App Notification Style) -->
+  <div id="activeAlarmBanner" class="hidden fixed top-3 inset-x-3 max-w-md mx-auto z-50 app-notif-card">
+    <div class="bg-white/95 backdrop-blur-md text-slate-900 rounded-3xl shadow-2xl border border-slate-200/90 p-4 ring-1 ring-black/5">
+      <!-- App Header Row like Native Android Notification -->
+      <div class="flex items-center justify-between gap-2 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] font-bold">💊</span>
+          <span class="text-xs font-bold text-slate-700">مُنظم مواعيد العلاج</span>
+          <span class="text-[11px] text-slate-400">• الآن</span>
+        </div>
+        <button id="alarmDismissBtn" type="button" class="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs transition" aria-label="إغلاق التنبيه">
+          ✕
+        </button>
+      </div>
+
+      <!-- Notification Main Body -->
+      <div class="flex items-start justify-between gap-3 pt-1">
+        <div class="space-y-0.5">
+          <h3 id="alarmTitle" class="text-sm font-extrabold text-slate-900">علاج المعدة — الجرعة اليومية</h3>
+          <p id="alarmSubtitle" class="text-xs text-slate-600 leading-relaxed">الميعاد المحدد: 08:00 صباحاً • يؤخذ على معدة فارغة قبل الفطار</p>
+        </div>
+        <div class="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-lg shrink-0">
+          💊
+        </div>
+      </div>
+
+      <!-- Native Notification Action Buttons Row -->
+      <div class="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-100">
+        <button id="alarmTakeBtn" type="button" class="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition text-center">
+          تم أخذ الجرعة ✓
+        </button>
+        <button id="alarmSnoozeBtn" type="button" class="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition text-center">
+          غفوة 10 د
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Message -->
+  <div id="toastContainer" class="fixed bottom-5 left-5 z-40 hidden">
+    <div class="bg-slate-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2">
+      <span id="toastDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+      <span id="toastText">تم الحفظ تلقائياً</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm font-bold text-lg">
+          💊
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-extrabold text-slate-900">مُنظم مواعيد العلاج اليومي</h1>
+          <p id="currentDateDisplay" class="text-xs text-slate-500">متابعة الجرعات وسجل الأيام</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Live Clock Badge -->
+        <div class="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1 text-center">
+          <div class="text-[10px] text-slate-500 font-semibold">الوقت الآن</div>
+          <div id="liveClock" class="text-xs sm:text-sm font-extrabold text-slate-800 tabular-nums">--:--:--</div>
+        </div>
+
+        <!-- Single Clean Notification Enable Button (No instructions box) -->
+        <button id="enableBrowserNotifBtn" type="button" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition shadow-xs">
+          تفعيل إشعارات المتصفح
+        </button>
+
+        <!-- Sound Toggle -->
+        <button id="soundToggleBtn" type="button" class="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition" title="تفعيل أو كتم صوت الجرس">
+          <span id="soundIcon">🔔</span>
+          <span id="soundLabel">الصوت مفعل</span>
+        </button>
+
+        <!-- Test Notification Button -->
+        <button id="testNotifyBtn" type="button" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+          تجربة التنبيه
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 pt-5 space-y-5">
+
+    <!-- Day Selector & Week Strip (إضافة الأيام والتنقل بينها) -->
+    <section class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-base">📅</span>
+          <div>
+            <h2 class="text-sm font-extrabold text-slate-900">اختر اليوم لمتابعة أو تعديل جرعاته</h2>
+            <p id="selectedDayBannerText" class="text-xs text-emerald-700 font-semibold">أنت تعرض الآن: اليوم</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button id="prevDayBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+            ◀ اليوم السابق
+          </button>
+          <button id="goTodayBtn" type="button" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition">
+            اليوم
+          </button>
+          <button id="nextDayBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+            اليوم التالي ▶
+          </button>
+          <input
+            id="selectedDateInput"
+            type="date"
+            aria-label="اختيار تاريخ معين"
+            class="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
+      </div>
+
+      <!-- 7-Day Interactive Strip -->
+      <div id="weekDaysStrip" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
+        <!-- Populated dynamically by JS -->
+      </div>
+    </section>
+
+    <!-- Top Summary Cards: Progress & Next Dose -->
+    <section class="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <!-- Progress Card -->
+      <div class="md:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <span id="activeDayBadge" class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">إنجاز اليوم المحدد</span>
+            <h2 id="activeDayTitle" class="text-xl font-extrabold text-slate-900 mt-2">متابعة الجرعات اليومية</h2>
+            <p class="text-xs text-slate-500 mt-0.5">إجمالي 8 جرعات (المعدة 1 • القولون 3 • الخميرة 3 • الحديد 1)</p>
+          </div>
+          <div class="text-left">
+            <span id="progressFraction" class="text-2xl font-black text-emerald-600 tabular-nums">0 / 8</span>
+            <div id="progressPercent" class="text-xs font-bold text-slate-400">0% مكتمل</div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
+            <div id="progressBarFill" class="h-full bg-emerald-500 transition-all duration-500 rounded-full" style="width: 0%"></div>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-slate-600">
+            <span id="remainingText">باقي 8 جرعات لليوم</span>
+            <div class="flex items-center gap-3">
+              <button id="checkAllDayBtn" type="button" class="text-emerald-700 hover:text-emerald-800 font-bold hover:underline">
+                تحديد كل جرعات اليوم ✓
+              </button>
+              <button id="openResetModalBtn" type="button" class="text-rose-600 hover:text-rose-700 font-bold hover:underline">
+                تصفير جدول اليوم ↺
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Upcoming Dose Card -->
+      <div class="md:col-span-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-400/30 px-2.5 py-1 rounded-lg">الجرعة القادمة</span>
+            <span id="nextDoseCountdown" class="text-xs font-semibold text-slate-300 tabular-nums">--</span>
+          </div>
+          <h3 id="nextDoseName" class="text-lg font-extrabold mt-3 text-white">--</h3>
+          <p id="nextDoseDesc" class="text-xs text-slate-300 mt-1">--</p>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-700/80 flex items-center justify-between">
+          <div>
+            <span class="text-[11px] text-slate-400 block">ميعاد الجرعة</span>
+            <span id="nextDoseTimeBadge" class="text-sm font-extrabold text-emerald-300 tabular-nums">--:--</span>
+          </div>
+          <button id="quickCheckNextBtn" type="button" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition">
+            تحديد كمأخوذة ✓
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- View Mode Tabs & Filter Controls -->
+    <section class="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button id="tabByMed" type="button" class="px-3.5 py-2 rounded-xl text-xs font-bold transition bg-slate-900 text-white">
+          تقسيم حسب العلاج (4 أدوية)
+        </button>
+        <button id="tabByTimeline" type="button" class="px-3.5 py-2 rounded-xl text-xs font-bold transition text-slate-600 hover:bg-slate-100">
+          الجدول الزمني لليوم (8 مواعيد)
+        </button>
+        <button id="tabHistory" type="button" class="px-3.5 py-2 rounded-xl text-xs font-bold transition text-slate-600 hover:bg-slate-100 flex items-center gap-1.5">
+          <span>سجل الأيام المحفوظة</span>
+          <span id="historyDaysCountBadge" class="px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 text-[10px]">1</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 px-2">
+        <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+          <input id="hideCompletedToggle" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+          <span>إخفاء الجرعات المكتملة</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- View 1: Grouped by Medication -->
+    <section id="medicationsView" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Populated dynamically by JS -->
+    </section>
+
+    <!-- View 2: Chronological Daily Timeline -->
+    <section id="timelineView" class="hidden space-y-3">
+      <!-- Populated dynamically by JS -->
+    </section>
+
+    <!-- View 3: Saved Days History Log (سجل الأيام عملت فيها إيه) -->
+    <section id="historyLogView" class="space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">📜 سجل الأيام المحفوظة (عملت إيه في كل يوم)</h2>
+            <p class="text-xs text-slate-500 mt-0.5">يتم حفظ كل علامة صح وميعاد أخذ الدواء تلقائياً لكل يوم في السجل بالأسفل</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="overallAdherenceSummary" class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+              إجمالي الالتزام: --
+            </span>
+          </div>
+        </div>
+
+        <!-- Daily Note Input for Current Selected Day -->
+        <div class="mt-4 bg-slate-50 rounded-xl p-3 border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <span class="text-xs font-bold text-slate-700 shrink-0">📝 ملاحظة اليوم المحدد:</span>
+          <input
+            id="dailyNoteInput"
+            type="text"
+            placeholder="اكتب أي ملاحظة عن يومك (مثال: أخدت الدواء في الميعاد، تحسن في المعدة...)"
+            class="flex-1 text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+          />
+          <button id="saveDailyNoteBtn" type="button" class="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shrink-0">
+            حفظ ملاحظة اليوم
+          </button>
+        </div>
+
+        <!-- History Cards List -->
+        <div id="historyCardsContainer" class="mt-4 space-y-3">
+          <!-- Populated dynamically by JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Reset Confirmation Modal -->
+  <div id="resetModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 border border-slate-200 shadow-xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-lg">
+          ↺
+        </div>
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">تصفير جرعات اليوم المحدد</h3>
+          <p class="text-xs text-slate-500">سيتم إلغاء تحديد علامات الصح لهذا اليوم فقط، مع بقاء باقي الأيام المحفوظة ومواعيدك كما هي.</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button id="cancelResetBtn" type="button" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+          إلغاء
+        </button>
+        <button id="confirmResetBtn" type="button" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition">
+          نعم، تصفير جدول اليوم
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'abdalla_med_schedule_v2';
+    const LEGACY_STORAGE_KEY = 'abdalla_med_schedule_v1';
+
+    const DEFAULT_MEDICATIONS = [
+      {
+        id: 'stomach',
+        name: 'علاج المعدة',
+        badge: 'مرة واحدة يومياً',
+        color: 'emerald',
+        icon: '🛡️',
+        note: 'يؤخذ على معدة فارغة قبل الفطار بـ 30 دقيقة',
+        doses: [
+          { id: 'stomach_1', label: 'الجرعة اليومية (قبل الفطار)', time: '08:00', taken: false, takenAt: null, snoozedUntil: null }
+        ]
+      },
+      {
+        id: 'colon',
+        name: 'علاج القولون',
+        badge: '3 مرات يومياً',
+        color: 'sky',
+        icon: '🌿',
+        note: 'يؤخذ قبل الوجبات الرئيسية بـ 20 دقيقة',
+        doses: [
+          { id: 'colon_1', label: 'الجرعة الأولى (قبل الفطار)', time: '08:30', taken: false, takenAt: null, snoozedUntil: null },
+          { id: 'colon_2', label: 'الجرعة الثانية (قبل الغداء)', time: '14:30', taken: false, takenAt: null, snoozedUntil: null },
+          { id: 'colon_3', label: 'الجرعة الثالثة (قبل العشاء)', time: '20:30', taken: false, takenAt: null, snoozedUntil: null }
+        ]
+      },
+      {
+        id: 'yeast',
+        name: 'أقراص الخميرة',
+        badge: '3 مرات يومياً',
+        color: 'amber',
+        icon: '✨',
+        note: 'تؤخذ بعد الوجبات الرئيسية',
+        doses: [
+          { id: 'yeast_1', label: 'الجرعة الأولى (بعد الفطار)', time: '09:30', taken: false, takenAt: null, snoozedUntil: null },
+          { id: 'yeast_2', label: 'الجرعة الثانية (بعد الغداء)', time: '15:30', taken: false, takenAt: null, snoozedUntil: null },
+          { id: 'yeast_3', label: 'الجرعة الثالثة (بعد العشاء)', time: '21:30', taken: false, takenAt: null, snoozedUntil: null }
+        ]
+      },
+      {
+        id: 'iron',
+        name: 'مكمل الحديد',
+        badge: 'مرة واحدة يومياً',
+        color: 'rose',
+        icon: '⚡',
+        note: 'يفضل بعيداً عن الشاي والقهوة والكالسيوم بساعتين',
+        doses: [
+          { id: 'iron_1', label: 'الجرعة اليومية (العصر / بعد الغداء)', time: '17:00', taken: false, takenAt: null, snoozedUntil: null }
+        ]
+      }
+    ];
+
+    function getLocalDateKey(dateObj = new Date()) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    const TODAY_KEY = getLocalDateKey(new Date());
+
+    let state = {
+      medications: JSON.parse(JSON.stringify(DEFAULT_MEDICATIONS)),
+      selectedDate: TODAY_KEY,
+      historyByDate: {},
+      viewMode: 'meds',
+      hideCompleted: false,
+      soundEnabled: true,
+      notificationsEnabled: true,
+      activeAlarmDoseId: null,
+      triggeredKeys: {}
+    };
+
+    let audioCtx = null;
+    let appIconDataUrl = null;
+
+    function createAppIconDataUrl() {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 192;
+        canvas.height = 192;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#059669';
+        ctx.beginPath();
+        ctx.roundRect(0, 0, 192, 192, 42);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 96px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('💊', 96, 102);
+        return canvas.toDataURL('image/png');
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function injectWebAppManifest() {
+      try {
+        if (!appIconDataUrl) appIconDataUrl = createAppIconDataUrl();
+        const manifestObj = {
+          name: 'مُنظم مواعيد العلاج اليومي',
+          short_name: 'مواعيد العلاج',
+          start_url: '.',
+          display: 'standalone',
+          background_color: '#f8fafc',
+          theme_color: '#059669',
+          lang: 'ar',
+          dir: 'rtl',
+          icons: appIconDataUrl ? [{ src: appIconDataUrl, sizes: '192x192', type: 'image/png' }] : []
+        };
+        const blob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = URL.createObjectURL(blob);
+        document.head.appendChild(link);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    function sendNativeSystemNotification(med, dose) {
+      if (!state.notificationsEnabled) return;
+      if (!appIconDataUrl) appIconDataUrl = createAppIconDataUrl();
+
+      const title = `${med.icon} ميعاد ${med.name}`;
+      const options = {
+        body: `${dose.label} • الساعة ${formatTime12Ar(dose.time)}\n${med.note}`,
+        icon: appIconDataUrl || undefined,
+        badge: appIconDataUrl || undefined,
+        tag: `med_dose_${dose.id}`,
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [350, 120, 350, 120, 450]
+      };
+
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+            navigator.serviceWorker.getRegistration().then(reg => {
+              if (reg && typeof reg.showNotification === 'function') {
+                reg.showNotification(title, {
+                  ...options,
+                  actions: [
+                    { action: 'take', title: 'تم أخذ الجرعة ✓' },
+                    { action: 'snooze', title: 'غفوة 10 د' }
+                  ]
+                }).catch(() => {
+                  try { new Notification(title, options); } catch (err) {}
+                });
+              } else {
+                try { new Notification(title, options); } catch (err) {}
+              }
+            }).catch(() => {
+              try { new Notification(title, options); } catch (err) {}
+            });
+          } else {
+            try { new Notification(title, options); } catch (err) {}
+          }
+        }
+      } catch (e) {
+        // In-app native banner + WebAudio chime handle alert
+      }
+    }
+
+    function ensureDayRecord(dateKey) {
+      if (!state.historyByDate[dateKey]) {
+        state.historyByDate[dateKey] = {
+          doses: {},
+          note: ''
+        };
+      }
+      if (!state.historyByDate[dateKey].doses) {
+        state.historyByDate[dateKey].doses = {};
+      }
+      return state.historyByDate[dateKey];
+    }
+
+    function syncActiveDateIntoMedications() {
+      const record = ensureDayRecord(state.selectedDate);
+      state.medications.forEach(med => {
+        med.doses.forEach(dose => {
+          const saved = record.doses[dose.id];
+          if (saved) {
+            dose.taken = Boolean(saved.taken);
+            dose.takenAt = saved.takenAt || null;
+          } else {
+            dose.taken = false;
+            dose.takenAt = null;
+          }
+        });
+      });
+    }
+
+    function saveCurrentDayToHistory() {
+      const record = ensureDayRecord(state.selectedDate);
+      state.medications.forEach(med => {
+        med.doses.forEach(dose => {
+          record.doses[dose.id] = {
+            taken: Boolean(dose.taken),
+            takenAt: dose.takenAt || null
+          };
+        });
+      });
+    }
+
+    function loadState() {
+      try {
+        const rawV2 = localStorage.getItem(STORAGE_KEY);
+        if (rawV2) {
+          const parsed = JSON.parse(rawV2);
+          if (parsed && Array.isArray(parsed.medications)) {
+            state.medications = parsed.medications;
+          }
+          if (parsed && parsed.historyByDate && typeof parsed.historyByDate === 'object') {
+            state.historyByDate = parsed.historyByDate;
+          }
+          state.soundEnabled = parsed.soundEnabled !== false;
+          state.notificationsEnabled = parsed.notificationsEnabled !== false;
+          state.hideCompleted = Boolean(parsed.hideCompleted);
+          if (['meds', 'timeline', 'history'].includes(parsed.viewMode)) {
+            state.viewMode = parsed.viewMode;
+          }
+        } else {
+          const rawV1 = localStorage.getItem(LEGACY_STORAGE_KEY);
+          if (rawV1) {
+            const parsedV1 = JSON.parse(rawV1);
+            if (parsedV1 && Array.isArray(parsedV1.medications)) {
+              state.medications = parsedV1.medications;
+              const migDate = parsedV1.lastResetDate || TODAY_KEY;
+              const rec = ensureDayRecord(migDate);
+              state.medications.forEach(med => {
+                med.doses.forEach(d => {
+                  rec.doses[d.id] = { taken: Boolean(d.taken), takenAt: d.takenAt || null };
+                });
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore storage errors
+      }
+      ensureDayRecord(TODAY_KEY);
+      state.selectedDate = TODAY_KEY;
+      syncActiveDateIntoMedications();
+    }
+
+    function saveState() {
+      saveCurrentDayToHistory();
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          medications: state.medications,
+          historyByDate: state.historyByDate,
+          soundEnabled: state.soundEnabled,
+          notificationsEnabled: state.notificationsEnabled,
+          hideCompleted: state.hideCompleted,
+          viewMode: state.viewMode
+        }));
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+
+    function playNotificationChime() {
+      if (!state.soundEnabled) return;
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        if (!audioCtx) {
+          audioCtx = new AudioContextClass();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+
+        const sequence = [
+          { freq: 587.33, delay: 0, dur: 0.22, type: 'sine' },
+          { freq: 880.0, delay: 0.18, dur: 0.28, type: 'sine' },
+          { freq: 1174.66, delay: 0.38, dur: 0.42, type: 'sine' },
+          { freq: 587.33, delay: 0.95, dur: 0.22, type: 'sine' },
+          { freq: 880.0, delay: 1.13, dur: 0.28, type: 'sine' },
+          { freq: 1174.66, delay: 1.33, dur: 0.48, type: 'sine' }
+        ];
+
+        sequence.forEach(item => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = item.type;
+          osc.frequency.setValueAtTime(item.freq, now + item.delay);
+          gain.gain.setValueAtTime(0.0001, now + item.delay);
+          gain.gain.exponentialRampToValueAtTime(0.26, now + item.delay + 0.025);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + item.delay + item.dur);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + item.delay);
+          osc.stop(now + item.delay + item.dur + 0.02);
+        });
+
+        if (navigator.vibrate) {
+          navigator.vibrate([350, 120, 350, 120, 450]);
+        }
+      } catch (e) {
+        // Ignore audio restrictions before gesture
+      }
+    }
+
+    function showToast(message) {
+      const container = document.getElementById('toastContainer');
+      const text = document.getElementById('toastText');
+      text.textContent = message;
+      container.classList.remove('hidden');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        container.classList.add('hidden');
+      }, 2800);
+    }
+
+    // Parse 24h string "HH:MM" into { h12: 1..12, minute: "00".."59", period: "AM" | "PM" }
+    function parseTime24To12Parts(time24) {
+      const [hStr, mStr] = (time24 || '08:00').split(':');
+      let h24 = parseInt(hStr, 10);
+      if (isNaN(h24)) h24 = 8;
+      const period = h24 >= 12 ? 'PM' : 'AM';
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      return {
+        h12,
+        minute: String(parseInt(mStr || '0', 10) || 0).padStart(2, '0'),
+        period
+      };
+    }
+
+    function convert12PartsToTime24(h12Input, minuteStr, period) {
+      let h = parseInt(h12Input, 10);
+      if (isNaN(h) || h < 1) h = 12;
+      if (h > 12) h = h % 12 || 12;
+      if (period === 'AM') {
+        if (h === 12) h = 0;
+      } else {
+        if (h !== 12) h += 12;
+      }
+      let mNum = parseInt(minuteStr, 10);
+      if (isNaN(mNum) || mNum < 0) mNum = 0;
+      if (mNum > 59) mNum = 59;
+      const m = String(mNum).padStart(2, '0');
+      return `${String(h).padStart(2, '0')}:${m}`;
+    }
+
+    function formatTime12Ar(time24) {
+      if (!time24 || !time24.includes(':')) return '--:--';
+      const { h12, minute, period } = parseTime24To12Parts(time24);
+      const label = period === 'PM' ? 'مساءً (م)' : 'صباحاً (ص)';
+      return `${String(h12).padStart(2, '0')}:${minute} ${label}`;
+    }
+
+    // Build custom explicit 12-hour + ALL 60 MINUTES (00..59) + صباحاً/مساءً HTML picker
+    function buildArabicTimePickerHtml(dose) {
+      const { h12, minute, period } = parseTime24To12Parts(dose.time);
+
+      const hoursOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => {
+        const sel = num === h12 ? 'selected' : '';
+        return `<option value="${num}" ${sel}>${String(num).padStart(2, '0')}</option>`;
+      }).join('');
+
+      // Every single minute from 00 to 59
+      const minutesOptions = Array.from({ length: 60 }, (_, idx) => {
+        const mVal = String(idx).padStart(2, '0');
+        const sel = mVal === minute ? 'selected' : '';
+        return `<option value="${mVal}" ${sel}>${mVal}</option>`;
+      }).join('');
+
+      const isAM = period === 'AM';
+      const amBtnCls = isAM
+        ? 'bg-amber-500 text-slate-950 font-extrabold shadow-xs'
+        : 'bg-transparent text-slate-600 hover:bg-slate-200/70 font-semibold';
+      const pmBtnCls = !isAM
+        ? 'bg-indigo-600 text-white font-extrabold shadow-xs'
+        : 'bg-transparent text-slate-600 hover:bg-slate-200/70 font-semibold';
+
+      return `
+        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 border border-slate-200/90 rounded-xl p-1">
+          <!-- Hour (1-12) & Minute (00-59) selects -->
+          <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5" title="الساعة والدقيقة (من 00 إلى 59)">
+            <select
+              data-action="change-hour12"
+              data-dose-id="${dose.id}"
+              aria-label="ساعة ${dose.label}"
+              class="text-xs font-extrabold text-slate-800 bg-transparent focus:outline-none cursor-pointer tabular-nums"
+            >
+              ${hoursOptions}
+            </select>
+            <span class="text-xs font-extrabold text-slate-400">:</span>
+            <select
+              data-action="change-minute12"
+              data-dose-id="${dose.id}"
+              aria-label="دقيقة ${dose.label}"
+              class="text-xs font-extrabold text-slate-800 bg-transparent focus:outline-none cursor-pointer tabular-nums"
+            >
+              ${minutesOptions}
+            </select>
+          </div>
+
+          <!-- Explicit AM / PM (صباحاً / مساءً) Toggle Buttons -->
+          <div class="flex items-center rounded-lg bg-slate-200/70 p-0.5">
+            <button
+              type="button"
+              data-action="set-period"
+              data-dose-id="${dose.id}"
+              data-period="AM"
+              class="px-2 py-1 rounded-md text-[11px] transition ${amBtnCls}"
+              title="تحديد الميعاد صباحاً"
+            >
+              ☀️ صباحاً
+            </button>
+            <button
+              type="button"
+              data-action="set-period"
+              data-dose-id="${dose.id}"
+              data-period="PM"
+              class="px-2 py-1 rounded-md text-[11px] transition ${pmBtnCls}"
+              title="تحديد الميعاد مساءً"
+            >
+              🌙 مساءً
+            </button>
+          </div>
+
+          <input
+            type="time"
+            value="${dose.time}"
+            data-action="change-time"
+            data-dose-id="${dose.id}"
+            class="hidden"
+            aria-hidden="true"
+          />
+        </div>
+      `;
+    }
+
+    function formatDateReadableAr(dateKey) {
+      try {
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        const formatter = new Intl.DateTimeFormat('ar-EG', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+        return formatter.format(dt);
+      } catch (e) {
+        return dateKey;
+      }
+    }
+
+    function getDayShortInfoAr(dateKey) {
+      try {
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        const weekday = new Intl.DateTimeFormat('ar-EG', { weekday: 'short' }).format(dt);
+        const dayMonth = new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short' }).format(dt);
+        return { weekday, dayMonth };
+      } catch (e) {
+        return { weekday: dateKey, dayMonth: '' };
+      }
+    }
+
+    function getAllDosesFlat() {
+      const list = [];
+      state.medications.forEach(med => {
+        med.doses.forEach(dose => {
+          list.push({
+            medId: med.id,
+            medName: med.name,
+            medIcon: med.icon,
+            medColor: med.color,
+            medNote: med.note,
+            dose
+          });
+        });
+      });
+      return list;
+    }
+
+    function findDoseById(doseId) {
+      for (const med of state.medications) {
+        for (const dose of med.doses) {
+          if (dose.id === doseId) {
+            return { med, dose };
+          }
+        }
+      }
+      return null;
+    }
+
+    function selectDate(newDateKey) {
+      if (!newDateKey) return;
+      saveCurrentDayToHistory();
+      state.selectedDate = newDateKey;
+      ensureDayRecord(newDateKey);
+      syncActiveDateIntoMedications();
+      saveState();
+      renderAll();
+    }
+
+    function shiftSelectedDate(deltaDays) {
+      const [y, m, d] = state.selectedDate.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      dt.setDate(dt.getDate() + deltaDays);
+      selectDate(getLocalDateKey(dt));
+    }
+
+    function toggleDose(doseId, forceValue) {
+      const found = findDoseById(doseId);
+      if (!found) return;
+      const { med, dose } = found;
+      const newVal = typeof forceValue === 'boolean' ? forceValue : !dose.taken;
+      dose.taken = newVal;
+      if (newVal) {
+        const now = new Date();
+        dose.takenAt = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        dose.snoozedUntil = null;
+        if (state.activeAlarmDoseId === doseId) {
+          dismissAlarmBanner();
+        }
+        showToast(`تم الحفظ في سجل (${formatDateReadableAr(state.selectedDate)}): ${med.name} ✓`);
+      } else {
+        dose.takenAt = null;
+        showToast(`تم تحديث سجل اليوم لـ: ${med.name}`);
+      }
+      saveState();
+      renderAll();
+    }
+
+    function updateDoseTime(doseId, newTime) {
+      const found = findDoseById(doseId);
+      if (!found || !newTime) return;
+      found.dose.time = newTime;
+      found.dose.snoozedUntil = null;
+      saveState();
+      renderAll();
+      showToast(`تم ضبط الميعاد إلى ${formatTime12Ar(newTime)} ✓`);
+    }
+
+    function updateDoseTimePart(doseId, partType, val) {
+      const found = findDoseById(doseId);
+      if (!found) return;
+      const currentParts = parseTime24To12Parts(found.dose.time);
+      if (partType === 'hour') {
+        currentParts.h12 = parseInt(val, 10);
+      } else if (partType === 'minute') {
+        currentParts.minute = String(val).padStart(2, '0');
+      } else if (partType === 'period') {
+        currentParts.period = val === 'PM' ? 'PM' : 'AM';
+      }
+      const updated24 = convert12PartsToTime24(currentParts.h12, currentParts.minute, currentParts.period);
+      updateDoseTime(doseId, updated24);
+    }
+
+    function updateMedNote(medId, newNote) {
+      const med = state.medications.find(m => m.id === medId);
+      if (!med) return;
+      med.note = newNote.trim() || med.note;
+      saveState();
+      renderAll();
+      showToast(`تم تحديث ملاحظة ${med.name}`);
+    }
+
+    function triggerAlarmForDose(doseId) {
+      const found = findDoseById(doseId);
+      if (!found) return;
+      const { med, dose } = found;
+      state.activeAlarmDoseId = dose.id;
+
+      const banner = document.getElementById('activeAlarmBanner');
+      document.getElementById('alarmTitle').textContent = `${med.icon} ${med.name} — ${dose.label}`;
+      document.getElementById('alarmSubtitle').textContent = `الميعاد: ${formatTime12Ar(dose.time)} • ${med.note}`;
+      banner.classList.remove('hidden');
+
+      playNotificationChime();
+      sendNativeSystemNotification(med, dose);
+    }
+
+    function dismissAlarmBanner() {
+      state.activeAlarmDoseId = null;
+      document.getElementById('activeAlarmBanner').classList.add('hidden');
+    }
+
+    function snoozeActiveAlarm() {
+      if (!state.activeAlarmDoseId) return;
+      const found = findDoseById(state.activeAlarmDoseId);
+      if (!found) return;
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 10);
+      const snoozeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      found.dose.snoozedUntil = snoozeStr;
+      dismissAlarmBanner();
+      saveState();
+      renderAll();
+      showToast(`تم تأجيل التنبيه 10 دقائق حتى ${formatTime12Ar(snoozeStr)}`);
+    }
+
+    function getColorClasses(color) {
+      const map = {
+        emerald: {
+          badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          iconBg: 'bg-emerald-100 text-emerald-700',
+          border: 'border-emerald-500'
+        },
+        sky: {
+          badge: 'bg-sky-50 text-sky-800 border-sky-200',
+          iconBg: 'bg-sky-100 text-sky-700',
+          border: 'border-sky-500'
+        },
+        amber: {
+          badge: 'bg-amber-50 text-amber-800 border-amber-200',
+          iconBg: 'bg-amber-100 text-amber-700',
+          border: 'border-amber-500'
+        },
+        rose: {
+          badge: 'bg-rose-50 text-rose-800 border-rose-200',
+          iconBg: 'bg-rose-100 text-rose-700',
+          border: 'border-rose-500'
+        }
+      };
+      return map[color] || map.emerald;
+    }
+
+    function computeNextUpcomingDose() {
+      const all = getAllDosesFlat().filter(item => !item.dose.taken);
+      if (all.length === 0) return null;
+
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+      let best = null;
+      let bestDiff = Infinity;
+
+      all.forEach(item => {
+        const targetTime = item.dose.snoozedUntil || item.dose.time;
+        const [h, m] = targetTime.split(':').map(Number);
+        const targetMinutes = h * 60 + m;
+        let diff = targetMinutes - nowMinutes;
+        if (diff < 0) {
+          diff += 24 * 60;
+        }
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = { ...item, diffMinutes: diff, effectiveTime: targetTime };
+        }
+      });
+
+      return best;
+    }
+
+    function getDayCompletionStats(dateKey) {
+      const rec = state.historyByDate[dateKey];
+      const totalDoses = 8;
+      if (!rec || !rec.doses) {
+        return { completed: 0, total: totalDoses, pct: 0 };
+      }
+      let completed = 0;
+      state.medications.forEach(med => {
+        med.doses.forEach(d => {
+          if (rec.doses[d.id] && rec.doses[d.id].taken) {
+            completed += 1;
+          }
+        });
+      });
+      return {
+        completed,
+        total: totalDoses,
+        pct: Math.round((completed / totalDoses) * 100)
+      };
+    }
+
+    function renderWeekDaysStrip() {
+      const strip = document.getElementById('weekDaysStrip');
+      strip.innerHTML = '';
+
+      document.getElementById('selectedDateInput').value = state.selectedDate;
+      const isToday = state.selectedDate === TODAY_KEY;
+      document.getElementById('selectedDayBannerText').textContent = isToday
+        ? `أنت تعرض الآن: اليوم (${formatDateReadableAr(state.selectedDate)})`
+        : `أنت تعرض سجل يوم: ${formatDateReadableAr(state.selectedDate)}`;
+
+      const [sy, sm, sd] = state.selectedDate.split('-').map(Number);
+      const centerDate = new Date(sy, sm - 1, sd);
+
+      const daysList = [];
+      for (let offset = -5; offset <= 1; offset++) {
+        const dt = new Date(centerDate);
+        dt.setDate(centerDate.getDate() + offset);
+        daysList.push(getLocalDateKey(dt));
+      }
+
+      daysList.forEach(dKey => {
+        const { weekday, dayMonth } = getDayShortInfoAr(dKey);
+        const stats = getDayCompletionStats(dKey);
+        const isSelected = dKey === state.selectedDate;
+        const isCurrentToday = dKey === TODAY_KEY;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.action = 'select-day';
+        btn.dataset.dateKey = dKey;
+
+        let badgeClass = 'bg-slate-100 text-slate-600';
+        if (stats.completed === stats.total) {
+          badgeClass = 'bg-emerald-100 text-emerald-800 font-extrabold';
+        } else if (stats.completed > 0) {
+          badgeClass = 'bg-amber-100 text-amber-800 font-bold';
+        }
+
+        btn.className = `p-2.5 rounded-xl border text-right transition flex flex-col justify-between ${
+          isSelected
+            ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+            : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800'
+        }`;
+
+        btn.innerHTML = `
+          <div class="flex items-center justify-between gap-1 w-full">
+            <span class="text-xs font-extrabold">${weekday}</span>
+            ${isCurrentToday ? `<span class="text-[10px] px-1.5 py-0.2 rounded ${isSelected ? 'bg-emerald-500 text-slate-950' : 'bg-emerald-100 text-emerald-800'} font-bold">اليوم</span>` : ''}
+          </div>
+          <div class="text-[11px] ${isSelected ? 'text-slate-300' : 'text-slate-500'} mt-0.5">${dayMonth}</div>
+          <div class="mt-2 flex items-center justify-between w-full">
+            <span class="text-[10px] px-2 py-0.5 rounded-md ${isSelected ? 'bg-slate-800 text-emerald-300' : badgeClass} tabular-nums">
+              ${stats.completed}/${stats.total} ${stats.completed === stats.total ? '✓' : ''}
+            </span>
+          </div>
+        `;
+        strip.appendChild(btn);
+      });
+    }
+
+    function renderSummaryAndNextDose() {
+      const all = getAllDosesFlat();
+      const total = all.length;
+      const completed = all.filter(d => d.dose.taken).length;
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      const isToday = state.selectedDate === TODAY_KEY;
+      document.getElementById('activeDayBadge').textContent = isToday
+        ? 'إنجاز اليوم الحالي'
+        : `سجل يوم: ${formatDateReadableAr(state.selectedDate)}`;
+      document.getElementById('activeDayTitle').textContent = isToday
+        ? 'متابعة الجرعات اليومية'
+        : `جرعات ${formatDateReadableAr(state.selectedDate)}`;
+
+      document.getElementById('progressFraction').textContent = `${completed} / ${total}`;
+      document.getElementById('progressPercent').textContent = `${pct}% مكتمل`;
+      document.getElementById('progressBarFill').style.width = `${pct}%`;
+
+      const rem = total - completed;
+      document.getElementById('remainingText').textContent =
+        rem === 0 ? 'ممتاز! تم أخذ جميع الجرعات الـ 8 بالكامل 🎉' : `باقي ${rem} جرعات في هذا اليوم`;
+
+      const next = computeNextUpcomingDose();
+      const nameEl = document.getElementById('nextDoseName');
+      const descEl = document.getElementById('nextDoseDesc');
+      const badgeEl = document.getElementById('nextDoseTimeBadge');
+      const countdownEl = document.getElementById('nextDoseCountdown');
+      const quickBtn = document.getElementById('quickCheckNextBtn');
+
+      if (!next) {
+        nameEl.textContent = 'اكتملت جميع الجرعات! 🎉';
+        descEl.textContent = 'تم أخذ علاج المعدة والقولون والخميرة ومكمل الحديد بالكامل.';
+        badgeEl.textContent = 'مكتمل 100%';
+        countdownEl.textContent = 'لا توجد جرعات متبقية';
+        quickBtn.disabled = true;
+        quickBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        quickBtn.dataset.doseId = '';
+      } else {
+        nameEl.textContent = `${next.medIcon} ${next.medName}`;
+        descEl.textContent = `${next.dose.label} • ${next.medNote}`;
+        badgeEl.textContent = formatTime12Ar(next.effectiveTime);
+        const hrs = Math.floor(next.diffMinutes / 60);
+        const mins = next.diffMinutes % 60;
+        if (next.diffMinutes === 0) {
+          countdownEl.textContent = 'حان الميعاد الآن!';
+        } else if (hrs > 0) {
+          countdownEl.textContent = `بعد ${hrs} س و ${mins} د`;
+        } else {
+          countdownEl.textContent = `بعد ${mins} دقيقة`;
+        }
+        quickBtn.disabled = false;
+        quickBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        quickBtn.dataset.doseId = next.dose.id;
+      }
+    }
+
+    function renderMedicationsView() {
+      const container = document.getElementById('medicationsView');
+      container.innerHTML = '';
+
+      state.medications.forEach(med => {
+        const colors = getColorClasses(med.color);
+        const visibleDoses = state.hideCompleted
+          ? med.doses.filter(d => !d.taken)
+          : med.doses;
+        const doneCount = med.doses.filter(d => d.taken).length;
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between space-y-4';
+
+        let dosesHtml = '';
+        if (visibleDoses.length === 0) {
+          dosesHtml = `
+            <div class="text-center py-4 bg-emerald-50/60 border border-emerald-200/70 rounded-xl text-xs font-bold text-emerald-700">
+              تم أخذ جميع جرعات ${med.name} في هذا اليوم ✓
+            </div>
+          `;
+        } else {
+          dosesHtml = visibleDoses.map(dose => {
+            const checkedAttr = dose.taken ? 'checked' : '';
+            const statusText = dose.taken
+              ? `<span class="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">تم الأخذ ${dose.takenAt ? formatTime12Ar(dose.takenAt) : '✓'}</span>`
+              : (dose.snoozedUntil
+                  ? `<span class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">مؤجل لـ ${formatTime12Ar(dose.snoozedUntil)}</span>`
+                  : `<span class="text-[11px] font-semibold text-slate-500">الميعاد: ${formatTime12Ar(dose.time)}</span>`);
+
+            return `
+              <div class="relative">
+                <input
+                  id="chk_${dose.id}"
+                  type="checkbox"
+                  data-action="toggle-dose"
+                  data-dose-id="${dose.id}"
+                  class="dose-checkbox sr-only"
+                  ${checkedAttr}
+                />
+                <div class="dose-card rounded-xl border border-slate-200 p-3 transition flex flex-col gap-2.5 hover:border-slate-300">
+                  <div class="flex items-center justify-between gap-2">
+                    <label for="chk_${dose.id}" class="flex items-center gap-3 cursor-pointer flex-1">
+                      <span class="w-6 h-6 rounded-lg border-2 flex items-center justify-center transition shrink-0 ${dose.taken ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
+                        ✓
+                      </span>
+                      <div>
+                        <div class="text-xs font-bold ${dose.taken ? 'line-through text-slate-400' : 'text-slate-800'}">${dose.label}</div>
+                        <div class="mt-0.5">${statusText}</div>
+                      </div>
+                    </label>
+
+                    <button
+                      type="button"
+                      data-action="ring-dose"
+                      data-dose-id="${dose.id}"
+                      title="تنبيه تجريبي لهذه الجرعة"
+                      class="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200/70 transition text-xs shrink-0"
+                    >
+                      🔔
+                    </button>
+                  </div>
+
+                  <!-- Explicit 12-Hour + Any Minute (00-59) + صباحاً / مساءً Picker -->
+                  <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <span class="text-[11px] font-bold text-slate-500">الميعاد:</span>
+                    ${buildArabicTimePickerHtml(dose)}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl ${colors.iconBg} flex items-center justify-center text-xl shrink-0">
+                  ${med.icon}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-base font-extrabold text-slate-900">${med.name}</h3>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-md border ${colors.badge}">${med.badge}</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">${med.note}</p>
+                </div>
+              </div>
+              <span class="text-xs font-extrabold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg tabular-nums shrink-0">
+                ${doneCount}/${med.doses.length}
+              </span>
+            </div>
+
+            <div class="mt-4 space-y-2.5">
+              ${dosesHtml}
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            <input
+              type="text"
+              value="${med.note.replace(/"/g, '&quot;')}"
+              data-action="update-note"
+              data-med-id="${med.id}"
+              placeholder="أضف اسم الدواء التجاري أو ملاحظة..."
+              class="w-full text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:bg-white focus:border-emerald-500"
+            />
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderTimelineView() {
+      const container = document.getElementById('timelineView');
+      container.innerHTML = '';
+
+      let all = getAllDosesFlat().sort((a, b) => a.dose.time.localeCompare(b.dose.time));
+      if (state.hideCompleted) {
+        all = all.filter(item => !item.dose.taken);
+      }
+
+      if (all.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+            <div class="text-3xl mb-2">🎉</div>
+            <h3 class="text-base font-extrabold text-slate-900">كل الجرعات مكتملة في هذا اليوم!</h3>
+            <p class="text-xs text-slate-500 mt-1">لا توجد جرعات متبقية في الجدول الزمني.</p>
+          </div>
+        `;
+        return;
+      }
+
+      all.forEach(item => {
+        const { dose } = item;
+        const colors = getColorClasses(item.medColor);
+        const row = document.createElement('div');
+        row.className = `bg-white rounded-2xl border ${dose.taken ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200'} p-4 shadow-sm flex flex-wrap items-center justify-between gap-3`;
+
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              data-action="toggle-dose-btn"
+              data-dose-id="${dose.id}"
+              class="w-7 h-7 rounded-xl border-2 flex items-center justify-center font-bold transition ${dose.taken ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white text-transparent hover:border-emerald-500'}"
+              aria-label="تحديد الجرعة"
+            >
+              ✓
+            </button>
+            <div class="w-10 h-10 rounded-xl ${colors.iconBg} flex items-center justify-center text-lg shrink-0">
+              ${item.medIcon}
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-extrabold ${dose.taken ? 'line-through text-slate-400' : 'text-slate-900'}">${item.medName}</span>
+                <span class="text-xs font-semibold text-slate-500">• ${dose.label}</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">${item.medNote}</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            ${buildArabicTimePickerHtml(dose)}
+          </div>
+        `;
+
+        container.appendChild(row);
+      });
+    }
+
+    function renderHistoryLog() {
+      const container = document.getElementById('historyCardsContainer');
+      const noteInput = document.getElementById('dailyNoteInput');
+      const activeRecord = ensureDayRecord(state.selectedDate);
+      noteInput.value = activeRecord.note || '';
+
+      const allKeysSet = new Set([TODAY_KEY, state.selectedDate, ...Object.keys(state.historyByDate)]);
+      const sortedDates = Array.from(allKeysSet).sort((a, b) => b.localeCompare(a));
+
+      document.getElementById('historyDaysCountBadge').textContent = String(sortedDates.length);
+
+      let totalTakenAllDays = 0;
+      let totalPossibleAllDays = sortedDates.length * 8;
+
+      sortedDates.forEach(dKey => {
+        const st = getDayCompletionStats(dKey);
+        totalTakenAllDays += st.completed;
+      });
+
+      const overallPct = totalPossibleAllDays > 0 ? Math.round((totalTakenAllDays / totalPossibleAllDays) * 100) : 0;
+      document.getElementById('overallAdherenceSummary').textContent =
+        `إجمالي السجل: ${sortedDates.length} أيام • ${totalTakenAllDays}/${totalPossibleAllDays} جرعة (${overallPct}%)`;
+
+      container.innerHTML = '';
+
+      sortedDates.forEach(dKey => {
+        const rec = ensureDayRecord(dKey);
+        const stats = getDayCompletionStats(dKey);
+        const isCurrentSelected = dKey === state.selectedDate;
+        const isToday = dKey === TODAY_KEY;
+
+        const medBreakdownHtml = state.medications.map(med => {
+          let medTaken = 0;
+          const takenTimes = [];
+          med.doses.forEach(d => {
+            const entry = rec.doses[d.id];
+            if (entry && entry.taken) {
+              medTaken += 1;
+              if (entry.takenAt) takenTimes.push(formatTime12Ar(entry.takenAt));
+            }
+          });
+          const allMedDone = medTaken === med.doses.length;
+          return `
+            <div class="rounded-xl border px-3 py-2 flex items-center justify-between gap-2 ${
+              allMedDone ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' : 'bg-slate-50 border-slate-200 text-slate-700'
+            }">
+              <div class="flex items-center gap-1.5">
+                <span>${med.icon}</span>
+                <span class="text-xs font-bold">${med.name}</span>
+              </div>
+              <div class="text-left">
+                <span class="text-xs font-extrabold tabular-nums">${medTaken}/${med.doses.length} ${allMedDone ? '✓' : ''}</span>
+                ${takenTimes.length > 0 ? `<div class="text-[10px] text-slate-500">${takenTimes.join(' ، ')}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        const card = document.createElement('div');
+        card.className = `rounded-2xl border p-4 transition ${
+          isCurrentSelected ? 'border-emerald-500 bg-emerald-50/20 shadow-xs' : 'border-slate-200 bg-white'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-extrabold text-slate-900">${formatDateReadableAr(dKey)}</span>
+              ${isToday ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white">اليوم</span>' : ''}
+              ${isCurrentSelected ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-900 text-white">معروض حالياً</span>' : ''}
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg ${
+                stats.completed === stats.total
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : stats.completed > 0
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-slate-100 text-slate-600'
+              } tabular-nums">
+                ${stats.completed} / ${stats.total} جرعات (${stats.pct}%)
+              </span>
+
+              <button
+                type="button"
+                data-action="select-day"
+                data-date-key="${dKey}"
+                class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition"
+              >
+                فتح وتعديل اليوم
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+            ${medBreakdownHtml}
+          </div>
+
+          ${rec.note ? `<div class="mt-3 text-xs text-slate-600 bg-slate-50 border border-slate-200/70 rounded-lg px-3 py-1.5">📝 <strong>ملاحظة اليوم:</strong> ${rec.note}</div>` : ''}
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderHeaderControls() {
+      const icon = document.getElementById('soundIcon');
+      const label = document.getElementById('soundLabel');
+      if (state.soundEnabled) {
+        icon.textContent = '🔔';
+        label.textContent = 'الصوت مفعل';
+      } else {
+        icon.textContent = '🔕';
+        label.textContent = 'الصوت مكتوم';
+      }
+    }
+
+    function renderTabs() {
+      const tabMed = document.getElementById('tabByMed');
+      const tabTime = document.getElementById('tabByTimeline');
+      const tabHist = document.getElementById('tabHistory');
+      const medView = document.getElementById('medicationsView');
+      const timeView = document.getElementById('timelineView');
+      const histView = document.getElementById('historyLogView');
+
+      const activeCls = 'px-3.5 py-2 rounded-xl text-xs font-bold transition bg-slate-900 text-white flex items-center gap-1.5';
+      const inactiveCls = 'px-3.5 py-2 rounded-xl text-xs font-bold transition text-slate-600 hover:bg-slate-100 flex items-center gap-1.5';
+
+      tabMed.className = state.viewMode === 'meds' ? activeCls : inactiveCls;
+      tabTime.className = state.viewMode === 'timeline' ? activeCls : inactiveCls;
+      tabHist.className = state.viewMode === 'history' ? activeCls : inactiveCls;
+
+      if (state.viewMode === 'meds') {
+        medView.classList.remove('hidden');
+        timeView.classList.add('hidden');
+        histView.classList.remove('hidden');
+      } else if (state.viewMode === 'timeline') {
+        timeView.classList.remove('hidden');
+        medView.classList.add('hidden');
+        histView.classList.remove('hidden');
+      } else {
+        medView.classList.add('hidden');
+        timeView.classList.add('hidden');
+        histView.classList.remove('hidden');
+      }
+
+      document.getElementById('hideCompletedToggle').checked = state.hideCompleted;
+    }
+
+    function renderAll() {
+      renderHeaderControls();
+      renderWeekDaysStrip();
+      renderTabs();
+      renderSummaryAndNextDose();
+      renderMedicationsView();
+      renderTimelineView();
+      renderHistoryLog();
+    }
+
+    function checkDueAlarms() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const currentHM = `${hh}:${mm}`;
+
+      let h12 = now.getHours() % 12;
+      if (h12 === 0) h12 = 12;
+      const period = now.getHours() >= 12 ? 'م' : 'ص';
+      document.getElementById('liveClock').textContent = `${String(h12).padStart(2, '0')}:${mm}:${ss} ${period}`;
+
+      const todayRec = ensureDayRecord(TODAY_KEY);
+      state.medications.forEach(med => {
+        med.doses.forEach(dose => {
+          const isTakenToday = todayRec.doses[dose.id] && todayRec.doses[dose.id].taken;
+          if (isTakenToday) return;
+          const targetHM = dose.snoozedUntil || dose.time;
+          const triggerKey = `${TODAY_KEY}_${dose.id}_${targetHM}`;
+          if (targetHM === currentHM && !state.triggeredKeys[triggerKey]) {
+            state.triggeredKeys[triggerKey] = true;
+            triggerAlarmForDose(dose.id);
+          }
+        });
+      });
+
+      if (ss === '00') {
+        renderSummaryAndNextDose();
+      }
+    }
+
+    function setupEventListeners() {
+      document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t.dataset.action === 'toggle-dose') {
+          toggleDose(t.dataset.doseId, t.checked);
+        } else if (t.dataset.action === 'change-time') {
+          updateDoseTime(t.dataset.doseId, t.value);
+        } else if (t.dataset.action === 'change-hour12') {
+          updateDoseTimePart(t.dataset.doseId, 'hour', t.value);
+        } else if (t.dataset.action === 'change-minute12') {
+          updateDoseTimePart(t.dataset.doseId, 'minute', t.value);
+        } else if (t.dataset.action === 'update-note') {
+          updateMedNote(t.dataset.medId, t.value);
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        if (action === 'ring-dose') {
+          triggerAlarmForDose(btn.dataset.doseId);
+        } else if (action === 'toggle-dose-btn') {
+          toggleDose(btn.dataset.doseId);
+        } else if (action === 'set-period') {
+          updateDoseTimePart(btn.dataset.doseId, 'period', btn.dataset.period);
+        } else if (action === 'select-day') {
+          selectDate(btn.dataset.dateKey);
+          showToast(`تم عرض سجل يوم: ${formatDateReadableAr(btn.dataset.dateKey)}`);
+        }
+      });
+
+      document.getElementById('prevDayBtn').addEventListener('click', () => {
+        shiftSelectedDate(-1);
+      });
+
+      document.getElementById('nextDayBtn').addEventListener('click', () => {
+        shiftSelectedDate(1);
+      });
+
+      document.getElementById('goTodayBtn').addEventListener('click', () => {
+        selectDate(TODAY_KEY);
+        showToast('تم العودة لجدول اليوم الحالي');
+      });
+
+      document.getElementById('selectedDateInput').addEventListener('change', (e) => {
+        if (e.target.value) {
+          selectDate(e.target.value);
+        }
+      });
+
+      document.getElementById('checkAllDayBtn').addEventListener('click', () => {
+        const now = new Date();
+        const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        state.medications.forEach(med => {
+          med.doses.forEach(d => {
+            if (!d.taken) {
+              d.taken = true;
+              d.takenAt = hm;
+            }
+          });
+        });
+        saveState();
+        renderAll();
+        showToast(`تم تسجيل جميع جرعات (${formatDateReadableAr(state.selectedDate)}) كمكتملة ✓`);
+      });
+
+      document.getElementById('saveDailyNoteBtn').addEventListener('click', () => {
+        const val = document.getElementById('dailyNoteInput').value.trim();
+        const rec = ensureDayRecord(state.selectedDate);
+        rec.note = val;
+        saveState();
+        renderHistoryLog();
+        showToast('تم حفظ ملاحظة اليوم في السجل ✓');
+      });
+
+      document.getElementById('tabByMed').addEventListener('click', () => {
+        state.viewMode = 'meds';
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('tabByTimeline').addEventListener('click', () => {
+        state.viewMode = 'timeline';
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('tabHistory').addEventListener('click', () => {
+        state.viewMode = 'history';
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('hideCompletedToggle').addEventListener('change', (e) => {
+        state.hideCompleted = e.target.checked;
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('soundToggleBtn').addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        saveState();
+        renderHeaderControls();
+        if (state.soundEnabled) {
+          playNotificationChime();
+          showToast('تم تفعيل صوت التنبيه 🔔');
+        } else {
+          showToast('تم كتم صوت التنبيه 🔕');
+        }
+      });
+
+      document.getElementById('testNotifyBtn').addEventListener('click', () => {
+        state.soundEnabled = true;
+        state.notificationsEnabled = true;
+        renderHeaderControls();
+        const next = computeNextUpcomingDose();
+        const targetId = next ? next.dose.id : 'stomach_1';
+        triggerAlarmForDose(targetId);
+      });
+
+      document.getElementById('quickCheckNextBtn').addEventListener('click', (e) => {
+        const doseId = e.currentTarget.dataset.doseId;
+        if (doseId) {
+          toggleDose(doseId, true);
+        }
+      });
+
+      // Alarm Banner controls
+      document.getElementById('alarmTakeBtn').addEventListener('click', () => {
+        if (state.activeAlarmDoseId) {
+          toggleDose(state.activeAlarmDoseId, true);
+        }
+      });
+
+      document.getElementById('alarmSnoozeBtn').addEventListener('click', () => {
+        snoozeActiveAlarm();
+      });
+
+      document.getElementById('alarmDismissBtn').addEventListener('click', () => {
+        dismissAlarmBanner();
+      });
+
+      // Reset Modal controls
+      document.getElementById('openResetModalBtn').addEventListener('click', () => {
+        document.getElementById('resetModal').classList.remove('hidden');
+      });
+
+      document.getElementById('cancelResetBtn').addEventListener('click', () => {
+        document.getElementById('resetModal').classList.add('hidden');
+      });
+
+      document.getElementById('confirmResetBtn').addEventListener('click', () => {
+        state.medications.forEach(med => {
+          med.doses.forEach(d => {
+            d.taken = false;
+            d.takenAt = null;
+            d.snoozedUntil = null;
+          });
+        });
+        saveState();
+        renderAll();
+        document.getElementById('resetModal').classList.add('hidden');
+        showToast(`تم تصفير جرعات يوم ${formatDateReadableAr(state.selectedDate)}`);
+      });
+
+      // Single Clean Notification Button
+      document.getElementById('enableBrowserNotifBtn').addEventListener('click', async () => {
+        state.notificationsEnabled = true;
+        state.soundEnabled = true;
+        saveState();
+        renderHeaderControls();
+
+        try {
+          if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+          }
+        } catch (e) {
+          // Ignore permission prompt errors
+        }
+
+        const next = computeNextUpcomingDose();
+        const targetId = next ? next.dose.id : 'stomach_1';
+        triggerAlarmForDose(targetId);
+        showToast('تم تفعيل الإشعارات بنجاح 🔔');
+      });
+    }
+
+    function initApp() {
+      appIconDataUrl = createAppIconDataUrl();
+      injectWebAppManifest();
+      loadState();
+      try {
+        const now = new Date();
+        const dateFormatter = new Intl.DateTimeFormat('ar-EG', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        document.getElementById('currentDateDisplay').textContent = dateFormatter.format(now);
+      } catch (e) {
+        // Ignore locale error
+      }
+      setupEventListeners();
+      renderAll();
+      checkDueAlarms();
+      setInterval(checkDueAlarms, 1000);
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
